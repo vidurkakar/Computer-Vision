@@ -1,0 +1,165 @@
+function featureTracking
+% Main function for feature tracking
+folder = '.\images';
+im = readImages(folder, 0:10:10);
+%im_g2=getGausPyramid(im,2);
+im_g3=getGausPyramid(im,3);
+
+tau = 0.09;                                % Threshold for harris corner detection
+%tau = 2;                                  % Threshold for harris corner detection
+
+
+
+[pt_x, pt_y] = meshgrid(1:5:size(im_g3{1,1}, 2),1:5:size(im_g3{1,1},1));    % Prob 1.1: keypoint detection
+pt_x = pt_x (:);
+pt_y = pt_y (:);
+
+
+
+ws = 7;                                     % Tracking ws x ws patches
+[track_x, track_y] = ...                    % Keypoint tracking
+    trackPoints(pt_x, pt_y, im_g3, ws);
+  
+
+% Visualizing the feature tracks on the first and the last frame
+figure(2), imagesc(im{1}), hold off, axis image, colormap gray
+hold on, plot(track_x', track_y', 'r');
+figure(3), imagesc(im{end}), hold off, axis image, colormap gray
+hold on, plot(track_x', track_y', 'r');
+
+%print out_temp1;
+
+
+function [track_x, track_y] = trackPoints(pt_x, pt_y, im, ws)
+%global out_temp1;
+%out_temp1=[];
+
+% Tracking initial points (pt_x, pt_y) across the image sequence
+% track_x: [Number of keypoints] x [2]
+% track_y: [Number of keypoints] x [2]
+
+% Initialization
+N = numel(pt_x);
+nim = numel(im);
+nim_g=nim/3;
+track_x = zeros(N, nim_g);
+track_y = zeros(N, nim_g);
+track_x(:, 1) = pt_x(:);
+track_y(:, 1) = pt_y(:);
+track_x_2=zeros(N, nim_g);
+track_y_2=zeros(N, nim_g);
+track_x_4=zeros(N, nim_g);
+track_y_4=zeros(N, nim_g);
+%track_x_2(:, 1) = pt_x(:)./2;
+%track_y_2(:, 1) = pt_y(:)./2;
+%track_x_4(:, 1) = pt_x(:)./4;
+%track_y_4(:, 1) = pt_y(:)./4;
+
+% track_x_2_mid(:, 1) = pt_x(:)/2;
+% track_y_2_mid(:, 1) = pt_y(:)/2;
+% 
+% track_x_4_mid(:, 1) = pt_x(:)/4;
+% track_y_4_mid(:, 1) = pt_y(:)/4;
+
+
+for t = 1:nim_g-1
+    
+    track_x_4(:, t)= track_x(:, t)./4;
+    track_y_4(:, t)= track_y(:, t)./4;
+    
+    % track points at pyramid 3 level
+    [track_x_4(:, t+1), track_y_4(:, t+1)] = ...
+    getNextPoints(track_x_4(:, t), track_y_4(:, t), im{t,3}, im{t+1,3}, ws);
+    
+    %multiply obtained points by 2
+    track_x_2_mid= track_x_4(:, t+1).*2;
+    track_y_2_mid= track_y_4(:, t+1).*2;
+    
+     % track points at pyramid 2 level
+    [track_x_2(:, t+1), track_y_2(:, t+1)] = ...
+        getNextPoints(track_x_2_mid, track_y_2_mid, im{t,2}, im{t+1,2}, ws);
+    
+    %multiply obtained points by 2
+    track_x_mid= track_x_2(:, t+1).*2;
+    track_y_mid= track_y_2(:, t+1).*2;
+    
+     % track points at pyramid 1 level
+    [track_x(:, t+1), track_y(:, t+1)] = ...
+        getNextPoints(track_x_mid, track_y_mid, im{t,1}, im{t+1,1}, ws);
+    
+end
+
+
+function [x2, y2] = getNextPoints(x, y, im1, im2, ws)
+% Iterative Lucas-Kanade feature tracking
+% x,  y : initialized keypoint position in im2
+% x2, y2: tracked keypoint positions in im2
+% ws: patch window size
+
+% YOUR CODE HERE
+x_2=x;y_2=y;
+%[Ix, Iy] = gradient(double(im1));
+Ix=imfilter(im1,[1 0 -1]);
+Iy=imfilter(im1,[1 0 -1]');
+hw = floor(ws/2);
+[X, Y] =(meshgrid(-hw:hw,-hw:hw));
+[im_size_y,im_size_x]=size(im1);
+
+
+
+for i=1:length(x)
+    %if((x_2(i)> hw) && (x_2(i)< im_size_x - hw) && (y_2(i)> hw) && (y_2(i)< im_size_y - hw) )
+    
+    if((x_2(i)> hw) && (x_2(i)< im_size_x - hw) && (y_2(i)> hw) && (y_2(i)< im_size_y - hw) )
+
+        [X, Y] =(meshgrid(x(i)-hw:hw+x(i),y(i)-hw:hw+y(i)));
+
+        patchIx=interp2(Ix,X,Y,'bilinear');
+        patchIy=interp2(Iy,X,Y,'bilinear');
+        patchim1 =interp2(im1,X,Y,'bilinear');
+        x_1=x(i); y_1=y(i);
+        for j=1:15
+            sumIx = sum(sum(patchIx.*patchIx));
+            sumIy =sum(sum(patchIy.*patchIy));
+            sumIxIy=sum(sum(patchIx.*patchIy));
+            A=[sumIx,sumIxIy;
+                sumIxIy,sumIy];
+            patchim2 = interp2(im2,X,Y,'bilinear');
+
+            It=patchim2-patchim1;
+
+            patchIxIt=sum(sum(patchIx.*It));
+            patchIyIt=sum(sum(patchIy.*It));
+            b=[patchIxIt;
+                patchIyIt;];
+
+           uv=A\b;
+           u=uv(1);
+           v=uv(2);
+           X=X+u;
+           Y=Y+v;
+           x_1=x_1+u;
+           y_1=y_1+v;
+        end
+        x_2(i)=x_1;
+        y_2(i)=y_1; 
+    end
+    
+end
+x2=x_2;
+y2=y_2;
+%size_im1=size(im1);
+%p=[];
+
+%out_x2=x2>size_im1(1);
+%out_y2=y2>size_im1(2);
+%out_temp=[[x2(out_x2),y2(out_y2)]];  
+
+function im = readImages(folder, nums)
+im = cell(numel(nums),1);
+t = 0;
+for k = nums,
+    t = t+1;
+    im{t} = imread(fullfile(folder, ['hotel.seq' num2str(k) '.png']));
+    im{t} = im2single(im{t});
+end

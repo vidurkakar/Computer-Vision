@@ -1,0 +1,31 @@
+K=64
+
+working on parameter set: slic_64, image:  50
+Average boundary recall = 0.364451 for K = 64 
+Average underseg error  = 0.261337 for K = 64 
+Mean Runtime  = 5.945456 for K = 64 
+
+
+
+K=256
+
+working on parameter set: slic_64, image:  50
+Average boundary recall = 0.478186 for K = 64 
+Average underseg error  = 0.247387 for K = 64 
+Mean Runtime  = 6.231061 for K = 64 
+
+K=1024
+
+working on parameter set: slic_1024, image:  50
+Average boundary recall = 0.898522 for K = 1024
+Average underseg error  = 0.071048 for K = 1024 
+Mean Runtime  = 13.894022 for K = 1024 
+
+
+
+K=256 (LAB)
+
+working on parameter set: slic_256_lab, image:  50
+Average boundary recall = 0.709280 for K = 256 (LAB) 
+Average underseg error  = 0.119660 for K = 256 (LAB) 
+Mean Runtime  = 11.113379 for K = 256 (LAB) 

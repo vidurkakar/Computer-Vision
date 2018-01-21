@@ -1,0 +1,151 @@
+function [cIndMap, time, imgVis] = slic(img, K, compactness)
+
+%% Implementation of Simple Linear Iterative Clustering (SLIC)
+%
+% Input:
+%   - img: input color image
+%   - K:   number of clusters
+%   - compactness: the weights for compactness
+% Output: 
+%   - cIndMap: a map of type uint16 storing the cluster memberships
+%     cIndMap(i, j) = k => Pixel (i,j) belongs to k-th cluster
+%   - time:    the time required for the computation
+%   - imgVis:  the input image overlaid with the segmentation
+
+% Put your SLIC implementation here
+
+%img=imread('images/car.jpg');
+% clc;
+% close all;
+% clear all;
+% img=imread('BSR/BSDS500/data/images/test/28083.jpg');
+% K=1024;
+% compactness=0.5;
+
+tic;
+
+
+% Input data
+imgB   = im2double(img);
+
+wt1=50;wt2=50;wt3=50;
+wt4=compactness; wt5=compactness;
+wt_vect=[wt1 wt2 wt3 wt4 wt5];
+
+%Initialise the center distances and index
+center_dist = inf(size(imgB,1),size(imgB,2));
+center_index= -ones(size(imgB,1),size(imgB,2));
+
+cform  = makecform('srgb2lab');
+imgLab = applycform(imgB, cform);
+imgLab=imgB; % for RGB Colour space in this case
+
+% Initialize cluster centers (equally distribute on the image). Each cluster is represented by 5D feature (L, a, b, x, y)
+% Hint: use linspace, meshgrid
+%Ys=floor(linspace(1,size(img,1),sqrt(K)));
+%Xs=floor(linspace(1,size(img,2),sqrt(K)));
+
+cluster_numbers=floor(sqrt(K));
+hwX=floor(size(img,1)/(2*cluster_numbers));
+hwY=floor(size(img,2)/(2*cluster_numbers));
+
+%Define meshgrid
+[Xc, Yc] = meshgrid( hwX : 2*hwX : size(img,1)-hwX , hwY : 2*hwY : size(img,2)-hwY);
+cluster_center= [Xc(:),Yc(:)];
+
+
+for i = 1:size(cluster_center,1)
+%     cluster_center_K(i,:)=[imgLab(cluster_center(i,1),cluster_center(i,2),1),imgLab(cluster_center(i,1),cluster_center(i,2),2),imgLab(cluster_center(i,1),cluster_center(i,2),3), cluster_center(i,1),cluster_center(i,2)];
+    cluster_center_K(i,:)=[imgLab(cluster_center(i,1),cluster_center(i,2),1),imgLab(cluster_center(i,1),cluster_center(i,2),2),imgLab(cluster_center(i,1),cluster_center(i,2),3), cluster_center(i,:)];
+end
+
+
+% SLIC superpixel segmentation
+% In each iteration, we update the cluster assignment and then update the cluster center
+
+numIter  = 25; % Number of iteration for running SLIC
+for iter = 1: numIter
+   
+    for i=1:size(cluster_center,1)
+       
+       %For dealing with cases of po
+       x_patch_last= cluster_center(i,1) + 2*hwX;
+       y_patch_last= cluster_center(i,2) + 2*hwY; 
+       
+       if y_patch_last > size(img,2)
+           y_patch_last=size(img,2);
+       end
+       
+        if x_patch_last > size(img,1)
+           x_patch_last=size(img,1);
+       end
+        
+        
+       x_patch_first= cluster_center(i,1) - 2*hwX;
+       y_patch_first= cluster_center(i,2) - 2*hwY; 
+       
+       if y_patch_first < 1
+           y_patch_first=1;
+       end
+       
+        if x_patch_first < 1
+           x_patch_first=1;
+        end
+        
+        for x_index = x_patch_first:x_patch_last
+         for y_index = y_patch_first:y_patch_last
+             
+             pixel_mat=[imgLab(x_index,y_index,1),imgLab(x_index,y_index,2),imgLab(x_index,y_index,3),x_index,y_index];
+             pixel_dist=sum(((pixel_mat - cluster_center_K(i,:)).*wt_vect).^2);
+                
+             if  pixel_dist < center_dist(x_index,y_index)
+                 cIndMap(x_index,y_index)=i;
+                  center_dist(x_index,y_index) = pixel_dist;
+             end
+                
+         end
+        end
+        
+    end
+        
+    
+    cluster_center_old=cluster_center_K;
+    
+    % Compute new cluster centres
+    for i=1:size(cluster_center_K,1)
+      [x_index_new y_index_new]= find(cIndMap==i);
+      center_y_final = floor(mean(y_index_new));
+      center_x_final = floor(mean(x_index_new));
+      cluster_center_K(i,:)=[imgLab(center_x_final,center_y_final,1),imgLab(center_x_final,center_y_final,2),imgLab(center_x_final,center_y_final,3), center_x_final, center_y_final];
+      
+    end
+    
+    error=(cluster_center_K - cluster_center_old).^2;
+    error=mean(mean(error));
+    
+    
+%     if(iter == 1)
+%         figure;
+%         imagesc(log(center_dist));
+%     end
+
+% To break if error less than 0.0001
+    if(error<0.0001)
+       break; 
+    end
+end
+
+time = toc;
+% figure;
+% imagesc(log(center_dist));
+
+% Visualize mean color image
+[gx, gy] = gradient(double(cIndMap));
+bMap = (gx.^2 + gy.^2) > 0;
+imgVis = img;
+imgVis(cat(3, bMap, bMap, bMap)) = 1;
+
+cIndMap = uint16(cIndMap);
+
+%  imagesc(imgVis);
+end

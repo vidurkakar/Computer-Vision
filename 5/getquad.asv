@@ -1,0 +1,15 @@
+function quad = getquad(point)
+side_%quad = [0,64,128,192,256];
+quad = [0,64,128,192,256];
+for i=1:size(point,2)
+quad_num=
+for j=1:4
+       if(point(1,i)> side_quad(j) && point(1,i)< side_quad(j+1))
+       x=j
+       end
+       if(point(2,i)> side_quad(j) && point(2,i)< side_quad(j+1))
+       y=j
+       end
+end
+end
+end
